@@ -23,6 +23,8 @@ use web3::types::{Address, Block, Log, Transaction, H256};
 use crate::data_source::MappingBlockHandler;
 use crate::data_source::MappingCallHandler;
 use crate::data_source::MappingEventHandler;
+use crate::runtime::abi::AscEthereumBlock;
+use crate::runtime::abi::AscEthereumBlock_0_0_6;
 use crate::runtime::abi::AscEthereumCall;
 use crate::runtime::abi::AscEthereumCall_0_0_3;
 use crate::runtime::abi::AscEthereumCall_0_0_6;
@@ -158,19 +160,20 @@ impl blockchain::MappingTrigger for MappingTrigger {
                 };
                 let api_version = heap.api_version();
                 if api_version >= Version::new(0, 0, 6) {
-                    asc_new::<AscEthereumEvent<AscEthereumTransaction_0_0_6>, _, _>(
-                        heap,
-                        &ethereum_event_data,
-                    )?
+                    asc_new::<
+                        AscEthereumEvent<AscEthereumTransaction_0_0_6, AscEthereumBlock_0_0_6>,
+                        _,
+                        _,
+                    >(heap, &ethereum_event_data)?
                     .erase()
                 } else if api_version >= Version::new(0, 0, 2) {
-                    asc_new::<AscEthereumEvent<AscEthereumTransaction_0_0_2>, _, _>(
+                    asc_new::<AscEthereumEvent<AscEthereumTransaction_0_0_2, AscEthereumBlock>, _, _>(
                         heap,
                         &ethereum_event_data,
                     )?
                     .erase()
                 } else {
-                    asc_new::<AscEthereumEvent<AscEthereumTransaction_0_0_1>, _, _>(
+                    asc_new::<AscEthereumEvent<AscEthereumTransaction_0_0_1, AscEthereumBlock>, _, _>(
                         heap,
                         &ethereum_event_data,
                     )?
@@ -203,7 +206,11 @@ impl blockchain::MappingTrigger for MappingTrigger {
             }
             MappingTrigger::Block { block, handler: _ } => {
                 let block = EthereumBlockData::from(block.as_ref());
-                asc_new(heap, &block)?.erase()
+                if heap.api_version() >= Version::new(0, 0, 6) {
+                    asc_new::<AscEthereumBlock_0_0_6, _, _>(heap, &block)?.erase()
+                } else {
+                    asc_new::<AscEthereumBlock, _, _>(heap, &block)?.erase()
+                }
             }
         })
     }
@@ -343,6 +350,7 @@ pub struct EthereumBlockData {
     pub difficulty: U256,
     pub total_difficulty: U256,
     pub size: Option<U256>,
+    pub base_fee_per_gas: Option<U256>,
 }
 
 impl<'a, T> From<&'a Block<T>> for EthereumBlockData {
@@ -362,6 +370,7 @@ impl<'a, T> From<&'a Block<T>> for EthereumBlockData {
             difficulty: block.difficulty,
             total_difficulty: block.total_difficulty.unwrap_or_default(),
             size: block.size,
+            base_fee_per_gas: block.base_fee_per_gas,
         }
     }
 }
